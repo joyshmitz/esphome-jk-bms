@@ -141,6 +141,10 @@ Program work status and dependencies live only in `/data/projects/deye-imex/.bea
 `labems`). Do not run `br init` or `ee init` here. Update the governing status file only when
 the program snapshot changes, and record the updater plus this repository's exact SHA.
 
+Do not run bare program-level `ee` commands from this repo: `/data/projects/.ee` is an
+unscoped ancestor marker, not the program workspace. Use
+`ee --workspace /data/projects/deye-imex ...`.
+
 Agent Mail coordination never authorizes a flash/deploy, broker LAN exposure, BMS command,
 wiring change, or physical laboratory scenario. Those require explicit user authorization for
 the exact action and the safety gates in `/data/projects/deye-imex/docs/scenarios.md`.
