@@ -1,4 +1,5 @@
 <!-- Fork of syssi/esphome-jk-bms. This file lives ONLY on the `work` branch, never on `main`. -->
+<!-- agent-mail: name=LavenderPuma project=/data/projects/esphome-jk-bms -->
 
 # AGENTS.md — esphome-jk-bms (fork)
 
@@ -120,10 +121,26 @@ as user starting points and CI fixtures (`*-faker` = canned data, `*-debug`, `*-
 
 ## 4. Multi-agent coordination (MCP Agent Mail)
 
-This repo coordinates with two sibling repos as an informal **energy-stack** group:
-`../deye-imex` (MQTT bridge for Deye SG02LP1 inverter) and `../flexmeasures` (flexibility
-scheduler). The am **Product Bus is disabled** on this server, so the shared bus =
-cross-project contact links + messages (thread `energy-stack-coord`). Bootstrap with
-`macro_start_session` for `/data/projects/esphome-jk-bms`; agent names auto-generate per session
-(no fixed identity marker). Shared interest = the BMS↔inverter data contract (SOC, cell/pack
-voltage, current, dynamic charge/discharge limits, MQTT topics/formats).
+This autonomous repository participates in the laboratory program governed from
+`/data/projects/deye-imex`; governance does not transfer ownership of this code. The stable
+identity and primary bus are the exact marker above. The shared Product Bus is
+`lab-ems-energy-stack`, and the canonical program snapshot is
+`/data/projects/deye-imex/docs/where-we-are.md`.
+
+The earlier `BluePine` registration on `/data/projects/felectra-deployment` is historical and
+outside this Product; do not route new `lab-ems-energy-stack` traffic through it.
+
+All three linked project buses contain recipient aliases `LavenderPuma`, `YellowHeron`, and
+`BluePine`. Send from this bus only as `LavenderPuma`, with explicit recipients. Product Bus in
+`am 0.3.30` is a federated read surface: create each update once on its owning repository bus;
+use the same `thread_id` for cross-repo replies. Never use `broadcast`, and do not pass `topic`.
+Shared threads use `lab-ems-energy-stack.shared.<kind>[.<subject>]`; repository-only threads use
+`lab-ems-energy-stack.repo.esphome-jk-bms.<topic>`.
+
+Program work status and dependencies live only in `/data/projects/deye-imex/.beads/` (prefix
+`labems`). Do not run `br init` or `ee init` here. Update the governing status file only when
+the program snapshot changes, and record the updater plus this repository's exact SHA.
+
+Agent Mail coordination never authorizes a flash/deploy, broker LAN exposure, BMS command,
+wiring change, or physical laboratory scenario. Those require explicit user authorization for
+the exact action and the safety gates in `/data/projects/deye-imex/docs/scenarios.md`.
