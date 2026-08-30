@@ -141,6 +141,12 @@ Program work status and dependencies live only in `/data/projects/deye-imex/.bea
 `labems`). Do not run `br init` or `ee init` here. Update the governing status file only when
 the program snapshot changes, and record the updater plus this repository's exact SHA.
 
+`YellowHeron` is the sole dispatcher and sole writer of the program Beads ledger and current
+status document. `LavenderPuma` does not self-claim ready work, change priorities or dependencies,
+or close a program Bead. It handles at most one explicitly assigned JK-BMS task, returns the exact
+repo SHA and verification evidence through Agent Mail, and waits for `YellowHeron` to review and
+close the work.
+
 Do not run bare program-level `ee` commands from this repo: `/data/projects/.ee` is an
 unscoped ancestor marker, not the program workspace. Use
 `ee --workspace /data/projects/deye-imex ...`.
