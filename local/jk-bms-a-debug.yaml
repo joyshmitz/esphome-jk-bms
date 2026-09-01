@@ -1,0 +1,21 @@
+# DEBUG-варіант продакшн jk-bms-a: конектиться до BMS A і логує ДЕКОДОВАНІ значення
+# (SOC, напруги комірок, charging_cycles, temps...) на рівні DEBUG. БЕЗ активного скану.
+# Використання: разова діагностика значень + мапінг ниток за charging_cycles.
+substitutions:
+  board_name: jk-bms-a
+  friendly: "JK-BMS String A"
+  string_id: string_a
+  bms_mac: "C8:47:80:19:0F:6F"
+  throttle: 10s
+
+packages:
+  common: !include _jk-bms-common.yaml
+
+logger:
+  level: VERBOSE              # headline-значення (SOC/комірки/cycles) логуються на VERBOSE
+  logs:
+    esp32_ble_client: INFO
+    esp32_ble_tracker: INFO
+    wifi: WARN
+    wifi_esp32: WARN
+    # jk_bms_ble успадковує VERBOSE → повний дамп значень

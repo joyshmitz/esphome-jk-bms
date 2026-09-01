@@ -1,0 +1,12 @@
+# Плата A — нитка String A. Флешується: esphome run local/jk-bms-a.yaml
+# Фізичну відповідність нитки звірити після 1-го з'єднання за charging_cycles
+# (нитка 1 = 217, нитка 2 = 162), тоді за потреби поміняти MAC місцями.
+substitutions:
+  board_name: jk-bms-a
+  friendly: "JK-BMS String A"
+  string_id: string_a
+  bms_mac: "C8:47:80:19:0F:6F"     # BLE-ім'я 405162A0814 (скан 27.08.2026)
+  throttle: 10s
+
+packages:
+  common: !include _jk-bms-common.yaml

@@ -1,0 +1,184 @@
+# ── СПІЛЬНИЙ ПАКЕТ (не флешується напряму) ──────────────────────────────────
+# Один JK-BMS B1A24S15P по BLE → MQTT, для однієї плати ESP32-C6.
+# Флеш через тонкі враппери: local/jk-bms-a.yaml  та  local/jk-bms-b.yaml.
+#
+# Параметри задає враппер через substitutions:
+#   board_name  — ім'я ноди (slug), напр. jk-bms-a
+#   friendly    — людська назва, напр. "JK-BMS String A"
+#   string_id   — string_a | string_b  (визначає префікс MQTT-тем)
+#   bms_mac     — BLE MAC цієї BMS
+#   throttle    — період публікації (A=10s, B=13s: рознесені навмисно)
+#
+# Схема тем відповідає ратифікованому telemetry-v1 (deye-imex@f85d92f):
+#   jkbms/${string_id}/<platform>/<object_id>/state  + живість jkbms/${string_id}/status
+# Дві окремі плати → колізії object_id між нитками немає за побудовою.
+#
+# Read-only за задумом: жодних switch/number/select/button з platform: jk_bms_ble
+# (це були б ключі живої батареї). Лишено тільки ble_client-перемикач (рве
+# з'єднання самого ESP, не чіпає батарею) і OTA під паролем.
+# Заземлення ниток роздільне — дротів між платами немає (див. deye-imex/docs/bms-can-link.md).
+
+esphome:
+  name: ${board_name}
+  friendly_name: ${friendly}
+  comment: "JK-BMS ${string_id} → MQTT (BLE, read-only)"
+  min_version: "2025.11.0"        # ESP32-C6 потребує свіжого ESPHome (esp-idf)
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf                 # C6: тільки esp-idf, Arduino-фреймворку немає
+
+# Компонент тягнемо з нашого форку, пін на коміт — self-contained: на Mac
+# потрібні лише ці yaml + secrets.yaml, репо клонувати НЕ треба.
+# Локальна альтернатива (якщо запускаєш із клону репо, файли лежать у local/):
+#   - source: { type: local, path: ../components }
+external_components:
+  - source: github://joyshmitz/esphome-jk-bms@60e28f238f8d649d443aab176156532a7a789ee7
+    refresh: 0s
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  min_auth_mode: WPA2
+
+mqtt:
+  broker: !secret mqtt_host
+  port: 1883
+  # Обліковий запис — НА ПЛАТУ (рішення B, labems-7f6.5): A → jk-bms-a, B → jk-bms-b
+  # (= ${board_name}); ACL брокера строго на jkbms/${string_id}/#.
+  username: ${board_name}
+  password: !secret mqtt_password
+  topic_prefix: jkbms/${string_id}
+  discovery: false
+  # Живість САМОГО ESP (не свіжість даних BMS — для цього data age нижче).
+  birth_message:
+    topic: jkbms/${string_id}/status
+    payload: online
+  will_message:
+    topic: jkbms/${string_id}/status
+    payload: offline
+
+ota:
+  platform: esphome
+  # Без пароля «read-only» не має сили: перепрошивка обходить усі обмеження цього файлу.
+  password: !secret ota_password
+  on_begin:
+    then:
+      - switch.turn_off: ble_switch
+      - logger.log: "BLE зупинено на час OTA"
+
+logger:
+  level: INFO
+  logs:
+    esp32_ble_tracker: WARN
+    esp32_ble_client: WARN
+
+globals:
+  # Для явного «віку даних» (data age) — див. template-сенсор нижче.
+  - id: seen
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false                 # пасивне сканування: не шлемо scan-request в ефір
+
+ble_client:
+  - mac_address: ${bms_mac}
+    id: client
+
+jk_bms_ble:
+  - ble_client_id: client
+    id: bms
+    # ЕМПІРИЧНО: JK02_24S давав правильні комірки, але сміттєві агрегати
+    # (total_voltage=0, SOC=0, cycles=48895, capacity=15400Ah) — класичне
+    # зміщення не тих полів. Кадр "version 2, 300 байт" = JK02_32S. Виправлено 2026-09-01.
+    protocol_version: JK02_32S
+    throttle: ${throttle}
+
+binary_sensor:
+  - platform: jk_bms_ble
+    jk_bms_ble_id: bms
+    balancing: {name: "balancing"}
+    charging: {name: "charging"}
+    discharging: {name: "discharging"}
+    online_status: {name: "online status"}
+
+sensor:
+  - platform: jk_bms_ble
+    jk_bms_ble_id: bms
+    delta_cell_voltage: {name: "delta cell voltage"}
+    min_cell_voltage: {name: "min cell voltage"}
+    max_cell_voltage: {name: "max cell voltage"}
+    min_voltage_cell: {name: "min voltage cell"}
+    max_voltage_cell: {name: "max voltage cell"}
+    average_cell_voltage: {name: "average cell voltage"}
+    total_voltage:
+      name: "total voltage"
+      on_value:
+        then:
+          - lambda: "id(seen) = (uint32_t)(millis() / 1000);"
+    current: {name: "current"}
+    power: {name: "power"}
+    temperature_sensor_1: {name: "temperature 1"}
+    temperature_sensor_2: {name: "temperature 2"}
+    mosfet_temperature: {name: "mosfet temperature"}
+    state_of_charge: {name: "state of charge"}
+    capacity_remaining: {name: "capacity remaining"}
+    total_charging_cycle_capacity: {name: "total charging cycle capacity"}
+    charging_cycles: {name: "charging cycles"}
+    balancing_current: {name: "balancing current"}
+    cell_voltage_1: {name: "cell voltage 1"}
+    cell_voltage_2: {name: "cell voltage 2"}
+    cell_voltage_3: {name: "cell voltage 3"}
+    cell_voltage_4: {name: "cell voltage 4"}
+    cell_voltage_5: {name: "cell voltage 5"}
+    cell_voltage_6: {name: "cell voltage 6"}
+    cell_voltage_7: {name: "cell voltage 7"}
+    cell_voltage_8: {name: "cell voltage 8"}
+    cell_voltage_9: {name: "cell voltage 9"}
+    cell_voltage_10: {name: "cell voltage 10"}
+    cell_voltage_11: {name: "cell voltage 11"}
+    cell_voltage_12: {name: "cell voltage 12"}
+    cell_voltage_13: {name: "cell voltage 13"}
+    cell_voltage_14: {name: "cell voltage 14"}
+
+  # Явний вік даних: при втраті BLE числові → NaN, а бінарні/текстові лишаються
+  # застарілими. Правило споживача: значення старші за ~60 с вважати непридатними.
+  - platform: template
+    name: "data age"
+    unit_of_measurement: s
+    accuracy_decimals: 0
+    update_interval: 15s
+    lambda: "return (float)((uint32_t)(millis() / 1000) - id(seen));"
+
+text_sensor:
+  - platform: jk_bms_ble
+    jk_bms_ble_id: bms
+    errors: {name: "errors"}
+    errors_bitmask_hex: {name: "errors bitmask hex"}
+    software_version: {name: "software version"}
+    hardware_version: {name: "hardware version"}
+    device_model: {name: "device model"}
+    serial_number: {name: "serial number"}
+    total_runtime_formatted: {name: "total runtime"}
+
+switch:
+  # ТІЛЬКИ ble_client. Рве з'єднання самого ESP (щоб звільнити BT для телефона —
+  # BMS тримає одне з'єднання за раз). Керований по MQTT: клієнт брокера може
+  # зупинити телеметрію, але НЕ перемкнути щось у батареї.
+  - platform: ble_client
+    ble_client_id: client
+    name: "enable bluetooth connection"
+    id: ble_switch
+
+# ── ОПЦІЙНО: локальний дисплей 1.47" (ST7789, 172×320) ──────────────────────
+# Плата Waveshare ESP32-C6-LCD-1.47 має вбудований екран. Він НЕ потрібен для
+# телеметрії, але може показувати SOC / delta / струм локально.
+# Пінаут SPI/підсвітки залежить від конкретної плати — ЗВІР з wiki Waveshare
+# перед вмиканням. Патерн виводу даних BMS на екран див. у прикладі репо:
+#   esp32-display-example.yaml
+# (лишено закоментованим свідомо, щоб не зашивати неперевірені піни.)

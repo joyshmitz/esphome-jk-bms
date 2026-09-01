@@ -1,0 +1,29 @@
+# ЧИСТИЙ BLE-сканер на ESP32-C6 (діагностика радіусу/радіо з точки Rock).
+# Жодного ble_client/jk_bms_ble/MQTT/WiFi — ніщо не заважає скану.
+# Логує КОЖНУ рекламу (MAC+RSSI) по USB-серійці; таргет-BMS позначає ADV-TARGET.
+esphome:
+  name: ble-scan-c6
+  friendly_name: BLE Scan C6
+  min_version: "2025.11.0"
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  logs:
+    esp32_ble_tracker: INFO   # глушимо внутрішній шум трекера; логує наш lambda
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+    interval: 640ms
+    window: 630ms             # майже безперервний скан — максимум шансів спіймати рекламу
+  on_ble_advertise:
+    - then:
+        - lambda: |-
+            bool tgt = (x.address_str() == "C8:47:80:19:0F:6F");
+            ESP_LOGD("scan", "ADV%s %s rssi=%d", tgt ? "-TARGET" : "", x.address_str().c_str(), x.get_rssi());
